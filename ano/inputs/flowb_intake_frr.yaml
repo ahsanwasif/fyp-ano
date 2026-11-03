@@ -1,0 +1,50 @@
+# Flow B on FRR (no vendor login needed): everything the user must state. No field has a default.
+# HQ (s1) and branch (s4) joined over two paths (s2, s3). OSPF for reachability, iBGP s1<->s4 over loopbacks,
+# and a sinkhole: s4 blackholes 192.0.2.0/24 and advertises it in BGP, so traffic to it from HQ must be dropped.
+intent: "Connect HQ LAN 10.10.10.0/24 and branch LAN 10.40.40.0/24 with OSPF, survive one path failure, sinkhole 192.0.2.0/24 at the branch via BGP."
+starting_point: greenfield
+device_login: {username: admin, secret_sha512: '$6$anolab$BbMA8kBXeSn9xfupFusWB1qPdllRTejNmiUEjj8iuUz.ZbZHnHxT7d8.mzvy/34Buh/S7UT1zUcrkVozFwSaC1'}   # FRR: logins are Linux users, so this is not written into frr.conf
+devices:
+  - {name: s1, vendor: FRRouting, platform: frr, os_version: "10.7.1", hw_model: FRR, role: hq-edge, mgmt_ip: 172.31.3.11/24, mgmt_interface: eth0, ssh_port: 22, cred_profile: 1, loopback_interface: lo, loopback: 10.255.1.1/32, loopback_ospf_area: 0.0.0.0, router_id: 10.255.1.1, existing_config: null}
+  - {name: s2, vendor: FRRouting, platform: frr, os_version: "10.7.1", hw_model: FRR, role: transit, mgmt_ip: 172.31.3.12/24, mgmt_interface: eth0, ssh_port: 22, cred_profile: 1, loopback_interface: lo, loopback: 10.255.1.2/32, loopback_ospf_area: 0.0.0.0, router_id: 10.255.1.2, existing_config: null}
+  - {name: s3, vendor: FRRouting, platform: frr, os_version: "10.7.1", hw_model: FRR, role: transit, mgmt_ip: 172.31.3.13/24, mgmt_interface: eth0, ssh_port: 22, cred_profile: 1, loopback_interface: lo, loopback: 10.255.1.3/32, loopback_ospf_area: 0.0.0.0, router_id: 10.255.1.3, existing_config: null}
+  - {name: s4, vendor: FRRouting, platform: frr, os_version: "10.7.1", hw_model: FRR, role: branch-edge, mgmt_ip: 172.31.3.14/24, mgmt_interface: eth0, ssh_port: 22, cred_profile: 1, loopback_interface: lo, loopback: 10.255.1.4/32, loopback_ospf_area: 0.0.0.0, router_id: 10.255.1.4, existing_config: null}
+vlans: []
+vrfs: []
+interfaces:
+  - {device: s1, name: eth1, mode: routed, ip: 10.0.0.0/31,   vrf: null, description: to-s2,  access_vlan: null, trunk_vlans: null, lag: null, lag_mode: null, ospf_area: 0.0.0.0, ospf_passive: false, ospf_network: point-to-point, mtu: null}
+  - {device: s1, name: eth2, mode: routed, ip: 10.0.0.2/31,   vrf: null, description: to-s3,  access_vlan: null, trunk_vlans: null, lag: null, lag_mode: null, ospf_area: 0.0.0.0, ospf_passive: false, ospf_network: point-to-point, mtu: null}
+  - {device: s1, name: eth3, mode: routed, ip: 10.10.10.1/24, vrf: null, description: hq-lan, access_vlan: null, trunk_vlans: null, lag: null, lag_mode: null, ospf_area: 0.0.0.0, ospf_passive: true,  ospf_network: null, mtu: null}
+  - {device: s2, name: eth1, mode: routed, ip: 10.0.0.1/31,   vrf: null, description: to-s1,  access_vlan: null, trunk_vlans: null, lag: null, lag_mode: null, ospf_area: 0.0.0.0, ospf_passive: false, ospf_network: point-to-point, mtu: null}
+  - {device: s2, name: eth2, mode: routed, ip: 10.0.0.4/31,   vrf: null, description: to-s4,  access_vlan: null, trunk_vlans: null, lag: null, lag_mode: null, ospf_area: 0.0.0.0, ospf_passive: false, ospf_network: point-to-point, mtu: null}
+  - {device: s3, name: eth1, mode: routed, ip: 10.0.0.3/31,   vrf: null, description: to-s1,  access_vlan: null, trunk_vlans: null, lag: null, lag_mode: null, ospf_area: 0.0.0.0, ospf_passive: false, ospf_network: point-to-point, mtu: null}
+  - {device: s3, name: eth2, mode: routed, ip: 10.0.0.6/31,   vrf: null, description: to-s4,  access_vlan: null, trunk_vlans: null, lag: null, lag_mode: null, ospf_area: 0.0.0.0, ospf_passive: false, ospf_network: point-to-point, mtu: null}
+  - {device: s4, name: eth1, mode: routed, ip: 10.0.0.5/31,   vrf: null, description: to-s2,  access_vlan: null, trunk_vlans: null, lag: null, lag_mode: null, ospf_area: 0.0.0.0, ospf_passive: false, ospf_network: point-to-point, mtu: null}
+  - {device: s4, name: eth2, mode: routed, ip: 10.0.0.7/31,   vrf: null, description: to-s3,  access_vlan: null, trunk_vlans: null, lag: null, lag_mode: null, ospf_area: 0.0.0.0, ospf_passive: false, ospf_network: point-to-point, mtu: null}
+  - {device: s4, name: eth3, mode: routed, ip: 10.40.40.1/24, vrf: null, description: br-lan, access_vlan: null, trunk_vlans: null, lag: null, lag_mode: null, ospf_area: 0.0.0.0, ospf_passive: true,  ospf_network: null, mtu: null}
+links:
+  - {a: "s1:eth1", b: "s2:eth1"}
+  - {a: "s1:eth2", b: "s3:eth1"}
+  - {a: "s2:eth2", b: "s4:eth1"}
+  - {a: "s3:eth2", b: "s4:eth2"}
+routing:
+  ospf: {process_id: 1}
+  bgp:
+    - {device: s1, asn: 65000, ebgp_without_policy: false, networks: [],
+       neighbors: [{ip: 10.255.1.4, remote_as: 65000, description: ibgp-s4, update_source: lo}]}
+    - {device: s4, asn: 65000, ebgp_without_policy: false, networks: [192.0.2.0/24],
+       neighbors: [{ip: 10.255.1.1, remote_as: 65000, description: ibgp-s1, update_source: lo}]}
+  static_routes:
+    - {device: s4, vrf: null, prefix: 192.0.2.0/24, next_hop: blackhole}
+policies: []                        # FRR cannot filter packets (platforms.FEATURES); put filters on a device that can
+services: {ntp: [], dns: [], syslog: []}
+acceptance_tests:
+  - {name: hq-to-branch,     from: "s1:eth3", src: 10.10.10.0/24, dst: 10.40.40.0/24, protocol: icmp, expect: permit}
+  - {name: branch-to-hq-tcp, from: "s4:eth3", src: 10.40.40.0/24, dst: 10.10.10.0/24, protocol: tcp, dst_port: 22, expect: permit}
+  - {name: hq-to-sinkhole,   from: "s1:eth3", src: 10.10.10.0/24, dst: 192.0.2.0/24, protocol: ip, expect: deny}
+failure_tests:
+  - {name: survive-s1-s2-down, down: ["s1:eth1"], then: hq-to-branch}
+  - {name: survive-s3-s4-down, down: ["s4:eth2"], then: branch-to-hq-tcp}
+emulation_images: {frr: "env:ANO_IMAGE_FRR"}
+change_constraints: {devices_allowed: [s1, s2, s3, s4], commit_confirm_seconds: 300}
+monitoring: {allowed: [ssh], gnmi_port: null, alert_webhook: "http://host.docker.internal:5001/alert"}

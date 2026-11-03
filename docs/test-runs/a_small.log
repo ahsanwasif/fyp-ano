@@ -1,0 +1,175 @@
+### $ python a1_discover.py --range 172.31.1.0/24
+[A2] 3 address(es) answer on TCP/22
+[A2] 172.31.1.11: frr (from probe 'show version', login profile 1)
+[A2] 172.31.1.12: frr (from probe 'show version', login profile 1)
+[A2] 172.31.1.13: frr (from probe 'show version', login profile 1)
+[A3] 172.31.1.11 -> r1 (netmiko:cisco_ios (6 commands)); not supported by driver: ['get_interfaces_counters', 'get_lldp_neighbors_detail', 'get_vlans', 'get_mac_address_table', 'get_network_instances', 'get_bgp_neighbors', 'get_bgp_config', 'get_arp_table', 'get_ipv6_neighbors_table', 'get_ntp_serve
+[A3] 172.31.1.12 -> r2 (netmiko:cisco_ios (6 commands)); not supported by driver: ['get_interfaces_counters', 'get_lldp_neighbors_detail', 'get_vlans', 'get_mac_address_table', 'get_network_instances', 'get_bgp_neighbors', 'get_bgp_config', 'get_arp_table', 'get_ipv6_neighbors_table', 'get_ntp_serve
+[A3] 172.31.1.13 -> r3 (netmiko:cisco_ios (6 commands)); not supported by driver: ['get_interfaces_counters', 'get_lldp_neighbors_detail', 'get_vlans', 'get_mac_address_table', 'get_network_instances', 'get_bgp_neighbors', 'get_bgp_config', 'get_arp_table', 'get_ipv6_neighbors_table', 'get_ntp_serve
+
+Wrote ./ano/out/discovery.json
+### exit=0
+### $ python a2_model.py
+Model: 3 devices, 3 links -> ./ano/out/model.yaml
+Test endpoint candidates from ARP (0) -> ./ano/out/endpoint_candidates.yaml (user confirms)
+### exit=0
+### $ python a3_intent.py --intent-json inputs/flowa_intent_frr.json
+Intent: {
+  "kind": "block_traffic",
+  "name": "block-lan1-to-lan3",
+  "match": {
+    "src": "10.1.1.0/24",
+    "dst": "10.3.3.0/24",
+    "protocol": "ip",
+    "dst_port": null
+  },
+  "must_still_work": [],
+  "unclear": []
+}
+
+ANO needs answers before it can continue:
+  Q1. Enforce on which ingress interface? Candidates in path order, closest to the source first: ['r1:eth3', 'r3:eth1']. Re-run with --accept <device:interface>.
+### exit=2
+### $ python a3_intent.py --intent-json inputs/flowa_intent_frr.json --accept r1:eth3
+Intent: {
+  "kind": "block_traffic",
+  "name": "block-lan1-to-lan3",
+  "match": {
+    "src": "10.1.1.0/24",
+    "dst": "10.3.3.0/24",
+    "protocol": "ip",
+    "dst_port": null
+  },
+  "must_still_work": [],
+  "unclear": []
+}
+Saved ./ano/out/intent.json
+### exit=0
+### $ python a4_render.py
+
+ANO needs answers before it can continue:
+  Q1. r1: FRR is a routing daemon and cannot filter packets. The only way is a null route for the DESTINATION on this device: it drops ALL traffic to that subnet entering here, whatever the source, protocol or port. Re-run with --accept-limited to use it (Batfish step 4 will list every flow it chang
+### exit=2
+### $ python a4_render.py --accept-limited
+--- change for r1 (frr) ---
+ip route 10.3.3.0/24 blackhole
+
+Candidate snapshot -> ./ano/out/batfish/candidate
+### exit=0
+### $ python a5_batfish.py --base out/batfish/base --candidate out/batfish/candidate --intent out/intent.json
+1. Parse check (unsupported or unparsed lines are reported, never ignored)
+  [WARN] configs/r1.cfg: PARTIALLY_UNRECOGNIZED
+  [WARN] configs/r2.cfg: PARTIALLY_UNRECOGNIZED
+  [WARN] configs/r3.cfg: PARTIALLY_UNRECOGNIZED
+  [WARN] configs/r1.cfg line 25: 'ip ospf passive' (This syntax is unrecognized)
+  [WARN] configs/r1.cfg line 30: 'ip ospf passive' (This syntax is unrecognized)
+  [WARN] configs/r2.cfg line 25: 'ip ospf passive' (This syntax is unrecognized)
+  [WARN] configs/r3.cfg line 25: 'ip ospf passive' (This syntax is unrecognized)
+  [WARN] configs/r3.cfg line 30: 'ip ospf passive' (This syntax is unrecognized)
+2. Sanity: is the intent already true today?
+  [PASS] baseline (should FAIL the intent, i.e. traffic currently allowed): expect permit (dst 10.3.3.1)
+3. Intent and must-still-work checks on the candidate
+  [PASS] intent: block-lan1-to-lan3: expect deny (dst 10.3.3.0/24)
+4. Collateral damage: every flow whose outcome changed
+  [FAIL] collateral: start=r1 [10.0.12.0->10.3.3.0 ICMP (type=8, code=0)]
+  [OK] changed (intended): start=r1 interface=eth3 [10.1.1.2->10.3.3.0 ICMP (type=8, code=0)]
+5. Forwarding loops
+  [PASS] 0 loop(s)
+
+RESULT: FAILED - back to intent/render step (max 3 tries), then ask user
+### exit=1
+### $ python a5_batfish.py --base out/batfish/base --candidate out/batfish/candidate --intent out/intent.json --accept-collateral
+1. Parse check (unsupported or unparsed lines are reported, never ignored)
+  [WARN] configs/r1.cfg: PARTIALLY_UNRECOGNIZED
+  [WARN] configs/r2.cfg: PARTIALLY_UNRECOGNIZED
+  [WARN] configs/r3.cfg: PARTIALLY_UNRECOGNIZED
+  [WARN] configs/r1.cfg line 25: 'ip ospf passive' (This syntax is unrecognized)
+  [WARN] configs/r1.cfg line 30: 'ip ospf passive' (This syntax is unrecognized)
+  [WARN] configs/r2.cfg line 25: 'ip ospf passive' (This syntax is unrecognized)
+  [WARN] configs/r3.cfg line 25: 'ip ospf passive' (This syntax is unrecognized)
+  [WARN] configs/r3.cfg line 30: 'ip ospf passive' (This syntax is unrecognized)
+2. Sanity: is the intent already true today?
+  [PASS] baseline (should FAIL the intent, i.e. traffic currently allowed): expect permit (dst 10.3.3.1)
+3. Intent and must-still-work checks on the candidate
+  [PASS] intent: block-lan1-to-lan3: expect deny (dst 10.3.3.0/24)
+4. Collateral damage: every flow whose outcome changed
+  [ACCEPTED BY USER] collateral: start=r1 [10.0.12.0->10.3.3.0 ICMP (type=8, code=0)]
+  [OK] changed (intended): start=r1 interface=eth3 [10.1.1.2->10.3.3.0 ICMP (type=8, code=0)]
+5. Forwarding loops
+  [PASS] 0 loop(s)
+
+RESULT: ALL CHECKS PASSED
+### exit=0
+### $ python a6_twin.py --endpoints inputs/flowa_endpoints_frr.yaml
+Twin: 5 nodes, 5 links -> ./ano/out/twin/twin.clab.yml
+Next: cd ./ano/out/twin && sudo -E containerlab deploy -t twin.clab.yml
+### exit=0
+### $ python postcheck.py --target prod --baseline
+== r1: ok
+== r2: ok
+== r3: ok
+
+Baseline saved -> ./ano/out/postcheck_prod/baseline.json (0 pre-existing problem(s))
+### exit=0
+### $ python deploy.py --target prod --diff
+===== r1 [diff] ok
+(no NAPALM diff for frr; lines to send:)
+ip route 10.3.3.0/24 blackhole
+
+### exit=0
+### $ python deploy.py --target prod --commit
+===== r1 [commit] ok
+ configure terminal
+r1(config)#  ip route 10.3.3.0/24 blackhole
+r1(config)#  end
+r1# 
+applied, not saved (no commit-confirm on this platform: run postcheck, then --confirm or --rollback)
+### exit=0
+### $ docker exec h1 ping -c2 -W1 10.3.3.10
+
+--- 10.3.3.10 ping statistics ---
+2 packets transmitted, 0 packets received, 100% packet loss
+### $ python postcheck.py --target prod
+== r1: no new problems
+== r2: no new problems
+== r3: no new problems
+
+POSTCHECK PASSED (no new problems)
+### exit=0
+### $ python deploy.py --target prod --rollback
+===== r1 [rollback] ok
+undo applied from ./ano/out/undo/r1.cfg
+ configure terminal
+r1(config)#  no ip route 10.3.3.0/24 blackhole
+r1(config)#  end
+r1# 
+### exit=0
+### $ docker exec h1 ping -c2 -W1 10.3.3.10
+--- 10.3.3.10 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 0.133/0.325/0.518 ms
+### $ python deploy.py --target prod --commit
+===== r1 [commit] ok
+ configure terminal
+r1(config)#  ip route 10.3.3.0/24 blackhole
+r1(config)#  end
+r1# 
+applied, not saved (no commit-confirm on this platform: run postcheck, then --confirm or --rollback)
+### exit=0
+### $ python deploy.py --target prod --confirm
+===== r1 [confirm] ok
+write mem
+Note: this version of vtysh never writes vtysh.conf
+Building Configuration...
+Error renaming /etc/frr/frr.conf to /etc/frr/frr.conf.sav: Resource busy
+Integrated configuration saved to /etc/frr/frr.conf
+[OK]
+r1# 
+### exit=0
+### $ python a7_monitor.py
+r1             -> ano ssh exporter
+r2             -> ano ssh exporter
+r3             -> ano ssh exporter
+Start the SSH exporter for ['r1', 'r2', 'r3']:  python ssh_exporter.py   (Prometheus job 'ano-ssh', port 9805)
+Wrote monitoring/gnmic.yaml, monitoring/alert.rules.yml, suzieq/inventory.yml
+### exit=0

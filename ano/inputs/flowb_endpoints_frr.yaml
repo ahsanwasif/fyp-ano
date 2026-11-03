@@ -1,0 +1,4 @@
+# Flow B (FRR lab) test endpoints for the twin (user-stated; hosts are not network devices)
+endpoints:
+  - {name: hq-pc, attach: "s1:eth3", ip: 10.10.10.10/24, gateway: 10.10.10.1}
+  - {name: br-pc, attach: "s4:eth3", ip: 10.40.40.10/24, gateway: 10.40.40.1}

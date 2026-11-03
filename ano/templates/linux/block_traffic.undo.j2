@@ -1,0 +1,5 @@
+{#- FORWARD = traffic passing through; INPUT = traffic addressed to this box itself (it never reaches FORWARD) -#}
+{%- set m = intent.match -%}
+{%- set rule -%}-i {{ enforce.interface }} -s {{ m.src }} -d {{ m.dst }}{% if m.protocol != "ip" %} -p {{ m.protocol }}{% endif %}{% if m.dst_port %} -m {{ m.protocol }} --dport {{ m.dst_port }}{% endif %} -j DROP{%- endset -%}
+iptables -D FORWARD {{ rule }}
+iptables -D INPUT {{ rule }}

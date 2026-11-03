@@ -1,0 +1,3 @@
+# Test hosts for the mixed-lab twin (the server srv1 is a managed device, so only the PC is listed)
+endpoints:
+  - {name: h1, attach: "r1:eth3", ip: 10.1.1.10/24, gateway: 10.1.1.1}

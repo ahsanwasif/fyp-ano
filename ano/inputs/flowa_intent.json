@@ -1,0 +1,7 @@
+{
+  "kind": "block_traffic",
+  "name": "block-http-lan1-lan3",
+  "match": {"src": "10.1.1.0/24", "dst": "10.3.3.0/24", "protocol": "tcp", "dst_port": 80},
+  "must_still_work": [{"src": "10.1.1.0/24", "dst": "10.3.3.0/24", "protocol": "icmp"}],
+  "unclear": []
+}

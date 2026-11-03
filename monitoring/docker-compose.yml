@@ -1,0 +1,37 @@
+# ANO monitoring stack. Run ano/a7_monitor.py FIRST: it writes gnmic.yaml, alert.rules.yml and ../suzieq/inventory.yml.
+# Start AFTER the deploy is confirmed:
+#   export ANO_USER=admin ANO_PASS=admin LAB_MGMT_NET=ano-prod-mgmt
+#   docker compose up -d
+services:
+  gnmic:
+    image: ghcr.io/openconfig/gnmic:latest
+    command: subscribe --config /app/gnmic.yaml
+    environment:
+      GNMIC_USERNAME: ${ANO_USER}
+      GNMIC_PASSWORD: ${ANO_PASS}
+    volumes: ["./gnmic.yaml:/app/gnmic.yaml:ro"]
+    networks: [lab, mon]
+  prometheus:
+    image: prom/prometheus:v3.5.0   # pinned: a future "latest" cannot change behaviour
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+    ports: ["9090:9090"]
+    extra_hosts: ["host.docker.internal:host-gateway"]   # reaches ano/ssh_exporter.py on the host
+    networks: [mon]
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    volumes: ["./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro"]
+    ports: ["9093:9093"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    networks: [mon]
+  grafana:
+    image: grafana/grafana:12.1.0
+    ports: ["3000:3000"]
+    volumes: ["./grafana/datasource.yml:/etc/grafana/provisioning/datasources/ds.yml:ro"]
+    networks: [mon]
+networks:
+  mon: {}
+  lab:
+    external: true
+    name: ${LAB_MGMT_NET}

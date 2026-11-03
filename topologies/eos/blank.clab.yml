@@ -1,0 +1,35 @@
+# Flow B test: "new hardware just racked". Devices boot with management access only
+# (containerlab's default cEOS config: hostname, admin/admin, Management0 IP, gNMI on).
+# ANO gets nothing from the devices until the deploy step; the user describes the network in inputs/flowb_intake.yaml.
+name: ano-blank
+mgmt:
+  network: ano-blank-mgmt
+  ipv4-subnet: 172.31.3.0/24
+topology:
+  kinds:
+    arista_ceos:
+      image: ${ANO_IMAGE_ARISTA_CEOS}
+  nodes:
+    s1: {kind: arista_ceos, mgmt-ipv4: 172.31.3.11}
+    s2: {kind: arista_ceos, mgmt-ipv4: 172.31.3.12}
+    s3: {kind: arista_ceos, mgmt-ipv4: 172.31.3.13}
+    s4: {kind: arista_ceos, mgmt-ipv4: 172.31.3.14}
+    hq-pc:
+      kind: linux
+      image: ghcr.io/hellt/network-multitool:latest
+      exec:
+        - ip addr add 10.10.10.10/24 dev eth1
+        - ip route add 10.0.0.0/8 via 10.10.10.1
+    br-pc:
+      kind: linux
+      image: ghcr.io/hellt/network-multitool:latest
+      exec:
+        - ip addr add 10.40.40.10/24 dev eth1
+        - ip route add 10.0.0.0/8 via 10.40.40.1
+  links:
+    - endpoints: ["s1:eth1", "s2:eth1"]
+    - endpoints: ["s1:eth2", "s3:eth1"]
+    - endpoints: ["s2:eth2", "s4:eth1"]
+    - endpoints: ["s3:eth2", "s4:eth2"]
+    - endpoints: ["s1:eth3", "hq-pc:eth1"]
+    - endpoints: ["s4:eth3", "br-pc:eth1"]

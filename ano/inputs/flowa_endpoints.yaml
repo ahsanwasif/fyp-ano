@@ -1,0 +1,5 @@
+# Test endpoints for the twin (Flow A). Hosts are not network devices, so ANO cannot discover them
+# over SSH; the user lists the endpoints the tests must use. Each attaches to a discovered interface.
+endpoints:
+  - {name: h1, attach: "r1:Ethernet3", ip: 10.1.1.10/24, gateway: 10.1.1.1}
+  - {name: h2, attach: "r3:Ethernet3", ip: 10.3.3.10/24, gateway: 10.3.3.1}

@@ -1,0 +1,40 @@
+# Flow B test (no vendor login needed): "new hardware just racked". FRR nodes boot with containerlab's minimal
+# config (no addresses, no routing). The user describes the network in ano/inputs/flowb_intake_frr.yaml.
+#   export ANO_IMAGE_FRR=quay.io/frrouting/frr:containerlab-10.7.1
+#   sudo -E containerlab deploy -t blank.clab.yml
+name: ano-blank
+mgmt:
+  network: ano-blank-mgmt
+  ipv4-subnet: 172.31.3.0/24
+topology:
+  kinds:
+    frr:
+      image: ${ANO_IMAGE_FRR}
+      daemons: [ospfd, bgpd]
+  nodes:
+    s1: {kind: frr, mgmt-ipv4: 172.31.3.11}
+    s2: {kind: frr, mgmt-ipv4: 172.31.3.12}
+    s3: {kind: frr, mgmt-ipv4: 172.31.3.13}
+    s4: {kind: frr, mgmt-ipv4: 172.31.3.14}
+    hq-pc:
+      kind: linux
+      image: ghcr.io/hellt/network-multitool:latest
+      mgmt-ipv4: 172.31.3.21
+      exec:
+        - ip addr add 10.10.10.10/24 dev eth1
+        - ip route add 10.0.0.0/8 via 10.10.10.1
+        - ip route add 192.0.2.0/24 via 10.10.10.1
+    br-pc:
+      kind: linux
+      image: ghcr.io/hellt/network-multitool:latest
+      mgmt-ipv4: 172.31.3.22
+      exec:
+        - ip addr add 10.40.40.10/24 dev eth1
+        - ip route add 10.0.0.0/8 via 10.40.40.1
+  links:
+    - endpoints: ["s1:eth1", "s2:eth1"]
+    - endpoints: ["s1:eth2", "s3:eth1"]
+    - endpoints: ["s2:eth2", "s4:eth1"]
+    - endpoints: ["s3:eth2", "s4:eth2"]
+    - endpoints: ["s1:eth3", "hq-pc:eth1"]
+    - endpoints: ["s4:eth3", "br-pc:eth1"]

@@ -1,0 +1,207 @@
+### $ python a1_discover.py --range 172.31.5.0/24
+[A2] 3 address(es) answer on TCP/22
+[A2] 172.31.5.11: frr (from probe 'show version', login profile 1)
+[A2] 172.31.5.21: linux (from SSHDetect, login profile 2)
+[A2] 172.31.5.22: linux (from SSHDetect, login profile 2)
+[A3] 172.31.5.11 -> g1 (netmiko:cisco_ios (6 commands)); not supported by driver: ['get_interfaces_counters', 'get_lldp_neighbors_detail', 'get_vlans', 'get_mac_address_table', 'get_network_instances', 'get_bgp_neighbors', 'get_bgp_config', 'get_arp_table', 'get_ipv6_neighbors_table', 'get_ntp_serve
+[A3] 172.31.5.21 -> gfw (netmiko:linux (7 commands)); not supported by driver: ['get_interfaces_counters', 'get_lldp_neighbors_detail', 'get_vlans', 'get_mac_address_table', 'get_network_instances', 'get_bgp_neighbors', 'get_bgp_config', 'get_arp_table', 'get_ipv6_neighbors_table', 'get_ntp_servers'
+[A3] 172.31.5.22 -> gsrv (netmiko:linux (7 commands)); not supported by driver: ['get_interfaces_counters', 'get_lldp_neighbors_detail', 'get_vlans', 'get_mac_address_table', 'get_network_instances', 'get_bgp_neighbors', 'get_bgp_config', 'get_arp_table', 'get_ipv6_neighbors_table', 'get_ntp_servers
+
+Wrote ./ano/out/discovery.json
+### exit=0
+### $ python a2_model.py --no-batfish
+Model: 3 devices, 0 links -> ./ano/out/model.yaml
+Test endpoint candidates from ARP (0) -> ./ano/out/endpoint_candidates.yaml (user confirms)
+
+ANO needs answers before it can continue:
+  Q1. Topology is split into islands [['g1'], ['gfw'], ['gsrv']]. Missing links, or separate networks?
+### exit=2
+### $ python b0_prefill.py
+Draft: 3 devices, 5 interfaces, 0 cables -> ./ano/out/intake_draft.yaml
+NOTE: No cabling was readable (no LLDP on these devices): describe links[] yourself; b2_reality_check.py then asks you to confirm each cable.
+### exit=0
+### $ head -30 out/intake_draft.yaml
+  os_version: Alpine Linux v3.16
+  hw_model: Linux
+  role: null
+### $ python b1_intake.py --intake out/intake_draft.yaml
+
+ANO needs answers before it can continue:
+  Q1. Missing or invalid: intent (Input should be a valid string)
+  Q2. Missing or invalid: starting_point (Input should be 'greenfield' or 'brownfield')
+  Q3. Missing or invalid: device_login (Input should be a valid dictionary or instance of DeviceLogin)
+  Q4. Missing or invalid: devices.0.role (Input should be a valid string)
+  Q5. Missing or invalid: devices.1.role (Input should be a valid string)
+  Q6. Missing or invalid: devices.2.role (Input should be a valid string)
+  Q7. Missing or invalid: interfaces.0.mode (Input should be 'routed', 'access', 'trunk', 'svi' or 'lag-member')
+  Q8. Missing or invalid: interfaces.0.description (Input should be a valid string)
+  Q9. Missing or invalid: interfaces.0.ospf_passive (Input should be a valid boolean)
+  Q10. Missing or invalid: interfaces.1.mode (Input should be 'routed', 'access', 'trunk', 'svi' or 'lag-member')
+  Q11. Missing or invalid: interfaces.1.description (Input should be a valid string)
+  Q12. Missing or invalid: interfaces.1.ospf_passive (Input should be a valid boolean)
+  Q13. Missing or invalid: interfaces.2.mode (Input should be 'routed', 'access', 'trunk', 'svi' or 'lag-member')
+  Q14. Missing or invalid: interfaces.2.description (Input should be a valid string)
+  Q15. Missing or invalid: interfaces.2.ospf_passive (Input should be a valid boolean)
+  Q16. Missing or invalid: interfaces.3.mode (Input should be 'routed', 'access', 'trunk', 'svi' or 'lag-member')
+  Q17. Missing or invalid: interfaces.3.description (Input should be a valid string)
+  Q18. Missing or invalid: interfaces.3.ospf_passive (Input should be a valid boolean)
+  Q19. Missing or invalid: interfaces.4.mode (Input should be 'routed', 'access', 'trunk', 'svi' or 'lag-member')
+  Q20. Missing or invalid: interfaces.4.description (Input should be a valid string)
+  Q21. Missing or invalid: interfaces.4.ospf_passive (Input should be a valid boolean)
+  Q22. Missing or invalid: routing (Input should be a valid dictionary or instance of Routing)
+  Q23. Missing or invalid: services (Input should be a valid dictionary or instance of Services)
+  Q24. Missing or invalid: acceptance_tests (Input should be a valid list)
+  Q25. Missing or invalid: failure_tests (Input should be a valid list)
+  Q26. Missing or invalid: emulation_images (Input should be a valid dictionary)
+  Q27. Missing or invalid: change_constraints (Input should be a valid dictionary or instance of Constraints)
+  Q28. Missing or invalid: monitoring (Input should be a valid dictionary or instance of Monitoring)
+### exit=2
+### $ python b1_intake.py --intake inputs/flowb_intake_mixed.yaml
+gfw: parts Batfish does not model (twin test only): ['route 10.5.0.0/24 via 10.5.1.1 (Batfish hosts model only one default gateway)']
+gsrv: parts Batfish does not model (twin test only): ['route 10.5.0.0/16 via 10.5.2.1 (Batfish hosts model only one default gateway)']
+Intake valid. 3 devices, 2 links.
+Configs -> ./ano/out/changes
+Batfish -> ./ano/out/batfish/candidate/configs
+Model   -> ./ano/out/model.yaml
+### exit=0
+### $ cat out/changes/gfw.cfg
+iptables -A INPUT -i eth1 -s 10.5.0.0/24 -d 10.5.2.0/24 -p icmp -j ACCEPT
+iptables -A FORWARD -i eth1 -s 10.5.0.0/24 -d 10.5.2.0/24 -j DROP
+iptables -A INPUT -i eth1 -s 10.5.0.0/24 -d 10.5.2.0/24 -j DROP
+### $ python a5_batfish.py --candidate out/batfish/candidate --tests inputs/flowb_intake_mixed.yaml
+1. Parse check (unsupported or unparsed lines are reported, never ignored)
+  [PASS] configs/g1.cfg: PASSED
+  [PASS] hosts/gfw.json: PASSED
+  [PASS] hosts/gsrv.json: PASSED
+  [PASS] iptables/gfw.iptables: PASSED
+3. Intent and must-still-work checks on the candidate
+  [ok] pc-https-to-server: gfw filter::FORWARD permits all of it (dst 10.5.2.1,10.5.2.10)
+  [ok] pc-https-to-server: gfw filter::INPUT permits all of it (dst 10.5.2.1)
+  [PASS] pc-https-to-server: expect permit (dst 10.5.2.1,10.5.2.10)
+  [ok] pc-ping-to-server: gfw filter::FORWARD permits all of it (dst 10.5.2.1,10.5.2.10)
+  [ok] pc-ping-to-server: gfw filter::INPUT permits all of it (dst 10.5.2.1)
+  [PASS] pc-ping-to-server: expect permit (dst 10.5.2.1,10.5.2.10)
+  [ok] pc-ssh-blocked: gfw filter::FORWARD denies all of it (dst 10.5.2.0/24)
+  [ok] pc-ssh-blocked: gfw filter::INPUT denies all of it (dst 10.5.2.1)
+  [PASS] pc-ssh-blocked: denied by firewall rules on the path
+4b. Failure tests (Batfish forks the snapshot with interfaces shut)
+5. Forwarding loops
+  [PASS] 0 loop(s)
+
+RESULT: ALL CHECKS PASSED
+### exit=0
+### $ python a6_twin.py --blank
+Twin: 3 nodes, 2 links -> ./ano/out/twin/twin.clab.yml
+Next: cd ./ano/out/twin && sudo -E containerlab deploy -t twin.clab.yml
+### exit=0
+### $ python b2_reality_check.py --intake inputs/flowb_intake_mixed.yaml
+== g1: matches the description
+== gfw: matches the description
+== gsrv: matches the description
+
+REALITY CHECK PASSED
+### exit=0
+### $ python deploy.py --target prod --commit
+===== g1 [commit] ok
+ configure terminal
+g1(config)#  frr defaults traditional
+g1(config)# hostname g1
+g1(config)# service integrated-vtysh-config
+g1(config)# !
+g1(config)# interface eth2
+g1(config-if)#  description pc-lan
+g1(config-if)#  ip address 10.5.0.1/24
+g1(config-if)# !
+g1(config-if)# interface eth1
+g1(config-if)#  description to-fw
+g1(config-if)#  ip address 10.5.1.1/24
+g1(config-if)# !
+g1(config-if)# interface lo
+g1(config-if)#  ip address 10.255.5.1/32
+g1(config-if)# !
+g1(config-if)# ip route 10.5.2.0/24 10.5.1.2
+g1(config)# !
+g1(config)#  end
+g1# 
+applied, not saved (no commit-confirm on this platform: run postcheck, then --confirm or --rollback)
+===== gfw [commit] ok
+$ #!/bin/sh
+
+$ # ANO Linux config of gfw (role: firewall)
+
+$ hostname gfw
+
+$ sysctl -w net.ipv4.ip_forward=1
+net.ipv4.ip_forward = 1
+$ ip addr replace 10.5.1.2/24 dev eth1
+
+$ ip link set eth1 up
+
+$ ip addr replace 10.5.2.1/24 dev eth2
+
+$ ip link set eth2 up
+
+$ ip route replace 10.5.0.0/24 via 10.5.1.1 dev eth1
+
+$ iptables -P FORWARD ACCEPT
+
+$ iptables -F FORWARD
+
+$ iptables -F INPUT
+
+$ iptables -A FORWARD -i eth1 -s 10.5.0.0/24 -d 10.5.2.0/24 -p tcp -m tcp --dport 443 -j ACCEPT
+
+$ iptables -A INPUT -i eth1 -s 10.5.0.0/24 -d 10.5.2.0/24 -p tcp -m tcp --dport 443 -j ACCEPT
+
+$ iptables -A FORWARD -i eth1 -s 10.5.0.0/24 -d 10.5.2.0/24 -p icmp -j ACCEPT
+
+$ iptables -A INPUT -i eth1 -s 10.5.0.0/24 -d 10.5.2.0/24 -p icmp -j ACCEPT
+
+$ iptables -A FORWARD -i eth1 -s 10.5.0.0/24 -d 10.5.2.0/24 -j DROP
+
+$ iptables -A INPUT -i eth1 -s 10.5.0.0/24 -d 10.5.2.0/24 -j DROP
+
+applied, not saved (no commit-confirm on this platform: run postcheck, then --confirm or --rollback)
+===== gsrv [commit] ok
+$ #!/bin/sh
+
+$ # ANO Linux config of gsrv (role: server)
+
+$ hostname gsrv
+
+$ sysctl -w net.ipv4.ip_forward=0
+net.ipv4.ip_forward = 0
+$ ip addr replace 10.5.2.10/24 dev eth1
+
+$ ip link set eth1 up
+
+$ ip route replace 10.5.0.0/16 via 10.5.2.1 dev eth1
+
+applied, not saved (no commit-confirm on this platform: run postcheck, then --confirm or --rollback)
+### exit=0
+### $ sleep 3; docker exec pc sh -c 'for p in 443 22 8080; do echo port $p: $(echo | nc -w2 10.5.2.10 $p | head -c 25); done; ping -c1 -W2 10.5.2.10 | grep received'
+port 22:
+port 8080:
+1 packets transmitted, 1 packets received, 0% packet loss
+### $ python postcheck.py --target prod
+(no baseline: every problem counts as new. Run with --baseline before the commit.)
+== g1: no new problems
+== gfw: no new problems
+== gsrv: no new problems
+
+POSTCHECK PASSED (no new problems)
+### exit=0
+### $ python deploy.py --target prod --confirm
+===== g1 [confirm] ok
+write mem
+Note: this version of vtysh never writes vtysh.conf
+Building Configuration...
+Error renaming /etc/frr/frr.conf to /etc/frr/frr.conf.sav: Resource busy
+Integrated configuration saved to /etc/frr/frr.conf
+[OK]
+g1# 
+===== gfw [confirm] FAILED
+QUESTION persist:gfw: How does this server persist iptables and routes (e.g. 'iptables-save > /etc/iptables/rules.v4', netplan, nmcli)? Answer with the exact command, or 'none' to keep the change until reboot only.
+===== gsrv [confirm] FAILED
+QUESTION persist:gsrv: How does this server persist iptables and routes (e.g. 'iptables-save > /etc/iptables/rules.v4', netplan, nmcli)? Answer with the exact command, or 'none' to keep the change until reboot only.
+### exit=1

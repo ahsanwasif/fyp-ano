@@ -1,0 +1,7 @@
+{
+  "kind": "block_traffic",
+  "name": "block-ssh-lan1-to-servers",
+  "match": {"src": "10.1.1.0/24", "dst": "10.4.4.0/24", "protocol": "tcp", "dst_port": 22},
+  "must_still_work": [{"src": "10.1.1.0/24", "dst": "10.4.4.0/24", "protocol": "tcp", "dst_port": 443}],
+  "unclear": []
+}

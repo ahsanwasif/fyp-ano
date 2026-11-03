@@ -1,0 +1,58 @@
+{# FRRouting frr.conf from the Flow B intake. Management (eth0) and users are Linux settings, not frr.conf. #}
+frr defaults traditional
+hostname {{ dev.name }}
+service integrated-vtysh-config
+!
+{% for i in ifaces %}
+interface {{ i.name }}
+ description {{ i.description }}
+ ip address {{ i.ip }}
+{% if i.ospf_area %}
+ ip ospf area {{ i.ospf_area }}
+{% endif %}
+{% if i.ospf_network %}
+ ip ospf network {{ i.ospf_network }}
+{% endif %}
+!
+{% endfor %}
+interface {{ dev.loopback_interface }}
+ ip address {{ dev.loopback }}
+{% if dev.loopback_ospf_area %}
+ ip ospf area {{ dev.loopback_ospf_area }}
+{% endif %}
+!
+{% for r in statics %}
+ip route {{ r.prefix }} {{ r.next_hop }}
+{% endfor %}
+!
+{% if ospf %}
+router ospf
+ ospf router-id {{ dev.router_id }}
+{% for i in ifaces if i.ospf_passive %}
+ passive-interface {{ i.name }}
+{% endfor %}
+!
+{% endif %}
+{% if bgp %}
+router bgp {{ bgp.asn }}
+ bgp router-id {{ dev.router_id }}
+{% if bgp.ebgp_without_policy %}
+ no bgp ebgp-requires-policy
+{% endif %}
+{% for n in bgp.neighbors %}
+ neighbor {{ n.ip }} remote-as {{ n.remote_as }}
+ neighbor {{ n.ip }} description {{ n.description }}
+{% if n.update_source %}
+ neighbor {{ n.ip }} update-source {{ n.update_source }}
+{% endif %}
+{% endfor %}
+{% if bgp.networks %}
+ address-family ipv4 unicast
+{% for net in bgp.networks %}
+  network {{ net }}
+{% endfor %}
+ exit-address-family
+{% endif %}
+!
+{% endif %}
+end

@@ -1,0 +1,5 @@
+route: {receiver: ano, group_wait: 5s, group_interval: 30s, repeat_interval: 1h}
+receivers:
+  - name: ano
+    webhook_configs:
+      - url: http://host.docker.internal:5001/alert   # ano/alert_receiver.py (later: ANO's self-healing entry point)

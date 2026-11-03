@@ -1,0 +1,7 @@
+{
+  "kind": "block_traffic",
+  "name": "block-lan1-to-lan3",
+  "match": {"src": "10.1.1.0/24", "dst": "10.3.3.0/24", "protocol": "ip"},
+  "must_still_work": [],
+  "unclear": []
+}

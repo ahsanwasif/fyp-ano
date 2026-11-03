@@ -1,0 +1,26 @@
+# Your answers to ANO's questions. Each question prints its id; put "<id>: <answer>" here and re-run the step.
+# These are the answers for the shipped labs. Rename this file to see each question asked first.
+
+# Flow A, FRR lab: FRR has no LLDP, so each cable inferred from a shared subnet is confirmed here
+link:r1:eth1|r2:eth1: direct
+link:r1:eth2|r3:eth1: direct
+link:r2:eth2|r3:eth2: direct
+# Flow A, FRR intent: blocking everything between the two LANs; nothing else must keep working
+must_still_work:block-lan1-to-lan3: nothing else
+
+# Flow B, FRR lab: no LLDP, so before deploy you confirm each described cable was checked physically
+cable:s1:eth1|s2:eth1: checked
+cable:s1:eth2|s3:eth1: checked
+cable:s2:eth2|s4:eth1: checked
+cable:s3:eth2|s4:eth2: checked
+# Flow B, cEOS lab: the ISP neighbour is outside the described network
+bgp-external:s4:203.0.113.1: "yes"
+
+# Mixed lab (routers + Linux firewall + Linux server): the two Linux cables, confirmed the same way
+link:fw1:eth1|r3:eth3: direct
+link:fw1:eth2|srv1:eth1: direct
+# Mixed lab: how the Linux firewall keeps its rules after a reboot (Alpine's iptables service reads this file)
+persist:fw1: "mkdir -p /etc/iptables && iptables-save > /etc/iptables/rules-save"
+# Flow B mixed lab: the described cables were checked (no LLDP on these boxes)
+cable:g1:eth1|gfw:eth1: checked
+cable:gfw:eth2|gsrv:eth1: checked

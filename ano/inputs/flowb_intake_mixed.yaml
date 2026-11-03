@@ -1,0 +1,41 @@
+# Flow B, mixed lab: a router, a Linux firewall and a Linux server, all blank. Nothing has a default.
+# PC LAN 10.5.0.0/24 -- g1 -- 10.5.1.0/24 -- gfw -- server LAN 10.5.2.0/24 (gsrv).
+# The firewall lets the PC LAN reach the server on HTTPS and ping, and blocks SSH and everything else to it.
+intent: "PC LAN reaches the server LAN through a firewall: HTTPS and ping allowed, SSH blocked."
+starting_point: greenfield
+device_login: {username: admin, secret_sha512: '$6$anolab$BbMA8kBXeSn9xfupFusWB1qPdllRTejNmiUEjj8iuUz.ZbZHnHxT7d8.mzvy/34Buh/S7UT1zUcrkVozFwSaC1'}
+devices:
+  - {name: g1,   vendor: FRRouting, platform: frr,   os_version: "8.4_git", hw_model: FRR, role: edge-router, mgmt_ip: 172.31.5.11/24, mgmt_interface: eth0, ssh_port: 22, cred_profile: 1, loopback_interface: lo, loopback: 10.255.5.1/32, loopback_ospf_area: null, router_id: null, existing_config: null}
+  - {name: gfw,  vendor: alpine, platform: linux, os_version: "Alpine Linux v3.16", hw_model: Linux, role: firewall, mgmt_ip: 172.31.5.21/24, mgmt_interface: eth0, ssh_port: 22, cred_profile: 2, loopback_interface: null, loopback: null, loopback_ospf_area: null, router_id: null, existing_config: null}
+  - {name: gsrv, vendor: alpine, platform: linux, os_version: "Alpine Linux v3.16", hw_model: Linux, role: server, mgmt_ip: 172.31.5.22/24, mgmt_interface: eth0, ssh_port: 22, cred_profile: 2, loopback_interface: null, loopback: null, loopback_ospf_area: null, router_id: null, existing_config: null}
+vlans: []
+vrfs: []
+interfaces:
+  - {device: g1,   name: eth2, mode: routed, ip: 10.5.0.1/24,  vrf: null, description: pc-lan,    access_vlan: null, trunk_vlans: null, lag: null, lag_mode: null, ospf_area: null, ospf_passive: false, ospf_network: null, mtu: null}
+  - {device: g1,   name: eth1, mode: routed, ip: 10.5.1.1/24,  vrf: null, description: to-fw,     access_vlan: null, trunk_vlans: null, lag: null, lag_mode: null, ospf_area: null, ospf_passive: false, ospf_network: null, mtu: null}
+  - {device: gfw,  name: eth1, mode: routed, ip: 10.5.1.2/24,  vrf: null, description: outside,   access_vlan: null, trunk_vlans: null, lag: null, lag_mode: null, ospf_area: null, ospf_passive: false, ospf_network: null, mtu: null}
+  - {device: gfw,  name: eth2, mode: routed, ip: 10.5.2.1/24,  vrf: null, description: inside,    access_vlan: null, trunk_vlans: null, lag: null, lag_mode: null, ospf_area: null, ospf_passive: false, ospf_network: null, mtu: null}
+  - {device: gsrv, name: eth1, mode: routed, ip: 10.5.2.10/24, vrf: null, description: server-lan,access_vlan: null, trunk_vlans: null, lag: null, lag_mode: null, ospf_area: null, ospf_passive: false, ospf_network: null, mtu: null}
+links:
+  - {a: "g1:eth1", b: "gfw:eth1"}
+  - {a: "gfw:eth2", b: "gsrv:eth1"}
+routing:
+  ospf: null
+  bgp: []
+  static_routes:
+    - {device: g1,   vrf: null, prefix: 10.5.2.0/24, next_hop: 10.5.1.2}
+    - {device: gfw,  vrf: null, prefix: 10.5.0.0/24, next_hop: 10.5.1.1}
+    - {device: gsrv, vrf: null, prefix: 10.5.0.0/16, next_hop: 10.5.2.1}
+policies:
+  - {name: allow-https, action: permit, src: 10.5.0.0/24, dst: 10.5.2.0/24, protocol: tcp, dst_port: 443, apply_on: "gfw:eth1", direction: in, sequence: 10}
+  - {name: allow-ping,  action: permit, src: 10.5.0.0/24, dst: 10.5.2.0/24, protocol: icmp, apply_on: "gfw:eth1", direction: in, sequence: 20}
+  - {name: deny-rest,   action: deny,   src: 10.5.0.0/24, dst: 10.5.2.0/24, protocol: ip,   apply_on: "gfw:eth1", direction: in, sequence: 30}
+services: {ntp: [], dns: [], syslog: []}
+acceptance_tests:
+  - {name: pc-https-to-server, from: "g1:eth2", src: 10.5.0.0/24, dst: 10.5.2.0/24, protocol: tcp, dst_port: 443, expect: permit}
+  - {name: pc-ping-to-server,  from: "g1:eth2", src: 10.5.0.0/24, dst: 10.5.2.0/24, protocol: icmp, expect: permit}
+  - {name: pc-ssh-blocked,     from: "g1:eth2", src: 10.5.0.0/24, dst: 10.5.2.0/24, protocol: tcp, dst_port: 22, expect: deny}
+failure_tests: []
+emulation_images: {frr: "env:ANO_IMAGE_FRR", linux: "env:ANO_IMAGE_LINUX"}
+change_constraints: {devices_allowed: [g1, gfw, gsrv], commit_confirm_seconds: 300}
+monitoring: {allowed: [ssh], gnmi_port: null, alert_webhook: "http://host.docker.internal:5001/alert"}

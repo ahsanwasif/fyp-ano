@@ -1,0 +1,114 @@
+{# Arista EOS full configuration from the Flow B intake. Every value comes from the intake. #}
+hostname {{ dev.name }}
+username {{ login.username }} privilege 15 role network-admin secret sha512 {{ login.secret_sha512 }}
+!
+service routing protocols model multi-agent
+!
+{% for v in vlans %}
+vlan {{ v.id }}
+   name {{ v.name }}
+!
+{% endfor %}
+{% for v in vrfs %}
+vrf instance {{ v.name }}
+!
+{% endfor %}
+ip routing
+{% for v in vrfs %}
+ip routing vrf {{ v.name }}
+{% endfor %}
+!
+interface {{ dev.mgmt_interface }}
+   ip address {{ dev.mgmt_ip }}
+!
+interface {{ dev.loopback_interface }}
+   ip address {{ dev.loopback }}
+!
+{% for i in ifaces %}
+interface {{ i.name }}
+   description {{ i.description }}
+{% if i.mtu %}
+   mtu {{ i.mtu }}
+{% endif %}
+{% if i.mode == "routed" and not i.name.startswith("Vlan") %}
+   no switchport
+{% elif i.mode == "access" %}
+   switchport mode access
+   switchport access vlan {{ i.access_vlan }}
+{% elif i.mode == "trunk" %}
+   switchport mode trunk
+   switchport trunk allowed vlan {{ i.trunk_vlans | join(",") }}
+{% elif i.mode == "lag-member" %}
+   channel-group {{ i.lag | replace("Port-Channel", "") }} mode {{ i.lag_mode }}
+{% endif %}
+{% if i.vrf %}
+   vrf {{ i.vrf }}
+{% endif %}
+{% if i.ip %}
+   ip address {{ i.ip }}
+{% endif %}
+{% if i.ospf_network == "point-to-point" %}
+   ip ospf network point-to-point
+{% endif %}
+!
+{% endfor %}
+{% for f in filters %}
+ip access-list {{ f.acl }}
+{% for p in f.policies %}
+   {{ p.sequence }} {{ p.action }} {{ p.protocol }} {{ p.src }} {{ p.dst }}{% if p.dst_port %} eq {{ p.dst_port }}{% endif %}
+
+{% endfor %}
+   4294967295 permit ip any any
+!
+interface {{ f.interface }}
+   ip access-group {{ f.acl }} {{ f.direction }}
+!
+{% endfor %}
+{% for r in statics %}
+ip route {% if r.vrf %}vrf {{ r.vrf }} {% endif %}{{ r.prefix }} {{ "Null0" if r.next_hop == "blackhole" else r.next_hop }}
+{% endfor %}
+!
+{% if ospf %}
+router ospf {{ ospf.process_id }}
+   router-id {{ dev.router_id }}
+{% for i in ifaces if i.ospf_passive %}
+   passive-interface {{ i.name }}
+{% endfor %}
+{% for i in ifaces if i.ospf_area %}
+   network {{ i.ip.network }} area {{ i.ospf_area }}
+{% endfor %}
+{% if dev.loopback_ospf_area %}
+   network {{ dev.loopback.network }} area {{ dev.loopback_ospf_area }}
+{% endif %}
+!
+{% endif %}
+{% if bgp %}
+router bgp {{ bgp.asn }}
+   router-id {{ dev.router_id }}
+{% for n in bgp.neighbors %}
+   neighbor {{ n.ip }} remote-as {{ n.remote_as }}
+   neighbor {{ n.ip }} description {{ n.description }}
+{% if n.update_source %}
+   neighbor {{ n.ip }} update-source {{ n.update_source }}
+{% endif %}
+{% endfor %}
+{% for net in bgp.networks %}
+   network {{ net }}
+{% endfor %}
+!
+{% endif %}
+{% for s in services.ntp %}
+ntp server {{ s }}
+{% endfor %}
+{% for s in services.dns %}
+ip name-server {{ s }}
+{% endfor %}
+{% for s in services.syslog %}
+logging host {{ s }}
+{% endfor %}
+{% if "gnmi" in monitoring.allowed %}
+management api gnmi
+   transport grpc default
+!
+{% endif %}
+end

@@ -1,0 +1,27 @@
+# Flow B test, mixed lab, everything BLANK: a router, a Linux firewall, a Linux server and a test PC.
+#   pc (10.5.0.10) -- g1 -- gfw -- gsrv          described in ano/inputs/flowb_intake_mixed.yaml
+#   (same images as prod.clab.yml)   sudo -E containerlab deploy -t blank.clab.yml
+name: ano-mixed-blank
+mgmt:
+  network: ano-mixed-blank-mgmt
+  ipv4-subnet: 172.31.5.0/24
+topology:
+  kinds:
+    frr: {image: "${ANO_IMAGE_FRR}", daemons: [staticd]}
+    linux: {image: "${ANO_IMAGE_LINUX}"}
+  nodes:
+    g1: {kind: frr, mgmt-ipv4: 172.31.5.11}
+    gfw: {kind: linux, mgmt-ipv4: 172.31.5.21}
+    gsrv:
+      kind: linux
+      mgmt-ipv4: 172.31.5.22
+      exec: ["sh -c '(while true; do nc -l -p 443 -e echo tls-ok; done) >/dev/null 2>&1 &'"]
+    pc:
+      kind: linux
+      image: ghcr.io/hellt/network-multitool:latest
+      mgmt-ipv4: 172.31.5.31
+      exec: ["ip addr add 10.5.0.10/24 dev eth1", "ip route add 10.5.0.0/16 via 10.5.0.1"]
+  links:
+    - endpoints: ["g1:eth1", "gfw:eth1"]
+    - endpoints: ["gfw:eth2", "gsrv:eth1"]
+    - endpoints: ["g1:eth2", "pc:eth1"]

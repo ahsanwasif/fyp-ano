@@ -1,0 +1,207 @@
+### $ python a1_discover.py --range 172.31.4.0/24
+[A2] 5 address(es) answer on TCP/22
+[A2] 172.31.4.11: frr (from probe 'show version', login profile 1)
+[A2] 172.31.4.12: frr (from probe 'show version', login profile 1)
+[A2] 172.31.4.13: frr (from probe 'show version', login profile 1)
+[A2] 172.31.4.21: linux (from SSHDetect, login profile 2)
+[A2] 172.31.4.22: linux (from SSHDetect, login profile 2)
+[A3] 172.31.4.11 -> r1 (netmiko:cisco_ios (6 commands)); not supported by driver: ['get_interfaces_counters', 'get_lldp_neighbors_detail', 'get_vlans', 'get_mac_address_table', 'get_network_instances', 'get_bgp_neighbors', 'get_bgp_config', 'get_arp_table', 'get_ipv6_neighbors_table', 'get_ntp_serve
+[A3] 172.31.4.12 -> r2 (netmiko:cisco_ios (6 commands)); not supported by driver: ['get_interfaces_counters', 'get_lldp_neighbors_detail', 'get_vlans', 'get_mac_address_table', 'get_network_instances', 'get_bgp_neighbors', 'get_bgp_config', 'get_arp_table', 'get_ipv6_neighbors_table', 'get_ntp_serve
+[A3] 172.31.4.13 -> r3 (netmiko:cisco_ios (6 commands)); not supported by driver: ['get_interfaces_counters', 'get_lldp_neighbors_detail', 'get_vlans', 'get_mac_address_table', 'get_network_instances', 'get_bgp_neighbors', 'get_bgp_config', 'get_arp_table', 'get_ipv6_neighbors_table', 'get_ntp_serve
+[A3] 172.31.4.21 -> fw1 (netmiko:linux (7 commands)); not supported by driver: ['get_interfaces_counters', 'get_lldp_neighbors_detail', 'get_vlans', 'get_mac_address_table', 'get_network_instances', 'get_bgp_neighbors', 'get_bgp_config', 'get_arp_table', 'get_ipv6_neighbors_table', 'get_ntp_servers'
+[A3] 172.31.4.22 -> srv1 (netmiko:linux (7 commands)); not supported by driver: ['get_interfaces_counters', 'get_lldp_neighbors_detail', 'get_vlans', 'get_mac_address_table', 'get_network_instances', 'get_bgp_neighbors', 'get_bgp_config', 'get_arp_table', 'get_ipv6_neighbors_table', 'get_ntp_servers
+
+Wrote ./ano/out/discovery.json
+### exit=0
+### $ python a2_model.py
+[A4] fw1: Batfish models this device only partly; NOT verified by Batfish: ['route 10.0.0.0/8 via 10.3.3.1 (Batfish hosts model only one default gateway)', "iptables stateful rule '-A FORWARD -m state --state INVALID -j DROP' (Batfish skips connection-state matches)"]
+[A4] srv1: Batfish models this device only partly; NOT verified by Batfish: ['route 10.0.0.0/8 via 10.4.4.1 (Batfish hosts model only one default gateway)']
+Model: 5 devices, 5 links -> ./ano/out/model.yaml
+Test endpoint candidates from ARP (0) -> ./ano/out/endpoint_candidates.yaml (user confirms)
+### exit=0
+### $ python a3_intent.py --intent-json inputs/flowa_intent_mixed.json
+Intent: {
+  "kind": "block_traffic",
+  "name": "block-ssh-lan1-to-servers",
+  "match": {
+    "src": "10.1.1.0/24",
+    "dst": "10.4.4.0/24",
+    "protocol": "tcp",
+    "dst_port": 22
+  },
+  "must_still_work": [
+    {
+      "src": "10.1.1.0/24",
+      "dst": "10.4.4.0/24",
+      "protocol": "tcp",
+      "dst_port": 443
+    }
+  ],
+  "unclear": []
+}
+
+ANO needs answers before it can continue:
+  Q1. Enforce on which ingress interface? Candidates in path order, closest to the source first: ['r1:eth3', 'r3:eth1', 'fw1:eth1']. Re-run with --accept <device:interface>.
+### exit=2
+### $ python a3_intent.py --intent-json inputs/flowa_intent_mixed.json --accept fw1:eth1
+Intent: {
+  "kind": "block_traffic",
+  "name": "block-ssh-lan1-to-servers",
+  "match": {
+    "src": "10.1.1.0/24",
+    "dst": "10.4.4.0/24",
+    "protocol": "tcp",
+    "dst_port": 22
+  },
+  "must_still_work": [
+    {
+      "src": "10.1.1.0/24",
+      "dst": "10.4.4.0/24",
+      "protocol": "tcp",
+      "dst_port": 443
+    }
+  ],
+  "unclear": []
+}
+Saved ./ano/out/intent.json
+### exit=0
+### $ python a4_render.py
+--- change for fw1 (linux) ---
+
+
+iptables -I FORWARD 1 -i eth1 -s 10.1.1.0/24 -d 10.4.4.0/24 -p tcp -m tcp --dport 22 -j DROP
+iptables -I INPUT 1 -i eth1 -s 10.1.1.0/24 -d 10.4.4.0/24 -p tcp -m tcp --dport 22 -j DROP
+
+fw1: parts Batfish does not model (twin test only): ['route 10.0.0.0/8 via 10.3.3.1 (Batfish hosts model only one default gateway)', "iptables stateful rule '-A FORWARD -m state --state INVALID -j DROP' (Batfish skips connection-state matches)"]
+Candidate snapshot -> ./ano/out/batfish/candidate
+### exit=0
+### $ python a5_batfish.py --base out/batfish/base --candidate out/batfish/candidate --intent out/intent.json
+1. Parse check (unsupported or unparsed lines are reported, never ignored)
+  [WARN] configs/r1.cfg: PARTIALLY_UNRECOGNIZED
+  [WARN] configs/r2.cfg: PARTIALLY_UNRECOGNIZED
+  [WARN] configs/r3.cfg: PARTIALLY_UNRECOGNIZED
+  [PASS] hosts/fw1.json: PASSED
+  [PASS] hosts/srv1.json: PASSED
+  [PASS] iptables/fw1.iptables: PASSED
+  [WARN] configs/r1.cfg line 25: 'ip ospf passive' (This syntax is unrecognized)
+  [WARN] configs/r1.cfg line 30: 'ip ospf passive' (This syntax is unrecognized)
+  [WARN] configs/r2.cfg line 25: 'ip ospf passive' (This syntax is unrecognized)
+  [WARN] configs/r3.cfg line 27: 'ip ospf passive' (This syntax is unrecognized)
+  [WARN] configs/r3.cfg line 32: 'ip ospf passive' (This syntax is unrecognized)
+2. Sanity: is the intent already true today?
+  [ok] baseline (should FAIL the intent, i.e. traffic currently allowed): fw1 filter::FORWARD permits all of it (dst 10.4.4.1,10.4.4.10)
+  [ok] baseline (should FAIL the intent, i.e. traffic currently allowed): fw1 filter::INPUT permits all of it (dst 10.4.4.1)
+  [PASS] baseline (should FAIL the intent, i.e. traffic currently allowed): expect permit (dst 10.4.4.1,10.4.4.10)
+3. Intent and must-still-work checks on the candidate
+  [ok] intent: block-ssh-lan1-to-servers: fw1 filter::FORWARD denies all of it (dst 10.4.4.0/24)
+  [ok] intent: block-ssh-lan1-to-servers: fw1 filter::INPUT denies all of it (dst 10.4.4.1)
+  [PASS] intent: block-ssh-lan1-to-servers: denied by firewall rules on the path
+  [ok] must still work #1: fw1 filter::FORWARD permits all of it (dst 10.4.4.1,10.4.4.10)
+  [ok] must still work #1: fw1 filter::INPUT permits all of it (dst 10.4.4.1)
+  [PASS] must still work #1: expect permit (dst 10.4.4.1,10.4.4.10)
+4. Collateral damage: every flow whose outcome changed
+  (no flow changed on the forwarding path)
+  [OK] fw1 filter::FORWARD: '-i eth1 -s 10.1.1.0/24 -d 10.4.4.0/24 -p tcp -m tcp --dport 22 -j DROP' now DENY (was 'default')
+  [OK] fw1 filter::INPUT: '-i eth1 -s 10.1.1.0/24 -d 10.4.4.0/24 -p tcp -m tcp --dport 22 -j DROP' now DENY (was 'default')
+5. Forwarding loops
+  [PASS] 0 loop(s)
+
+RESULT: ALL CHECKS PASSED
+### exit=0
+### $ python a6_twin.py --endpoints inputs/flowa_endpoints_mixed.yaml
+Traceback (most recent call last):
+  File "./ano/a6_twin.py", line 128, in <module>
+    main()
+    ~~~~^^
+  File "./ano/a6_twin.py", line 59, in main
+    ep_list = load_yaml(a.endpoints)["endpoints"] if a.endpoints else []
+              ~~~~~~~~~^^^^^^^^^^^^^
+  File "./ano/common.py", line 52, in load_yaml
+    return yaml.safe_load(Path(p).read_text())
+                          ~~~~~~~~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/pathlib/_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/pathlib/_abc.py", line 632, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/pathlib/_local.py", line 537, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'inputs/flowa_endpoints_mixed.yaml'
+### exit=1
+### $ python postcheck.py --target prod --baseline
+== r1: ok
+== r2: ok
+== r3: ok
+== fw1: ok
+== srv1: ok
+
+Baseline saved -> ./ano/out/postcheck_prod/baseline.json (0 pre-existing problem(s))
+### exit=0
+### $ python deploy.py --target prod --diff
+===== fw1 [diff] ok
+(no NAPALM diff for linux; lines to send:)
+
+
+iptables -I FORWARD 1 -i eth1 -s 10.1.1.0/24 -d 10.4.4.0/24 -p tcp -m tcp --dport 22 -j DROP
+iptables -I INPUT 1 -i eth1 -s 10.1.1.0/24 -d 10.4.4.0/24 -p tcp -m tcp --dport 22 -j DROP
+
+### exit=0
+### $ python deploy.py --target prod --commit
+===== fw1 [commit] ok
+$ iptables -I FORWARD 1 -i eth1 -s 10.1.1.0/24 -d 10.4.4.0/24 -p tcp -m tcp --dport 22 -j DROP
+
+$ iptables -I INPUT 1 -i eth1 -s 10.1.1.0/24 -d 10.4.4.0/24 -p tcp -m tcp --dport 22 -j DROP
+
+applied, not saved (no commit-confirm on this platform: run postcheck, then --confirm or --rollback)
+### exit=0
+### $ docker exec h1 sh -c 'echo | nc -w2 10.4.4.10 22 | head -c 20; echo; echo | nc -w2 10.4.4.10 443'
+
+tls-ok
+### $ python postcheck.py --target prod
+== r1: no new problems
+== r2: no new problems
+== r3: no new problems
+== fw1: no new problems
+== srv1: no new problems
+
+POSTCHECK PASSED (no new problems)
+### exit=0
+### $ python deploy.py --target prod --rollback
+===== fw1 [rollback] ok
+undo applied from ./ano/out/undo/fw1.cfg
+$ iptables -D FORWARD -i eth1 -s 10.1.1.0/24 -d 10.4.4.0/24 -p tcp -m tcp --dport 22 -j DROP
+
+$ iptables -D INPUT -i eth1 -s 10.1.1.0/24 -d 10.4.4.0/24 -p tcp -m tcp --dport 22 -j DROP
+
+### exit=0
+### $ docker exec h1 sh -c 'echo | nc -w2 10.4.4.10 22 | head -c 20; echo; echo | nc -w2 10.4.4.10 443'
+SSH-2.0-OpenSSH_9.6p
+tls-ok
+### $ python deploy.py --target prod --commit
+===== fw1 [commit] ok
+$ iptables -I FORWARD 1 -i eth1 -s 10.1.1.0/24 -d 10.4.4.0/24 -p tcp -m tcp --dport 22 -j DROP
+
+$ iptables -I INPUT 1 -i eth1 -s 10.1.1.0/24 -d 10.4.4.0/24 -p tcp -m tcp --dport 22 -j DROP
+
+applied, not saved (no commit-confirm on this platform: run postcheck, then --confirm or --rollback)
+### exit=0
+### $ python deploy.py --target prod --confirm
+===== fw1 [confirm] ok
+$ mkdir -p /etc/iptables && iptables-save > /etc/iptables/rules-save
+
+### exit=0
+### $ docker exec fw1 cat /etc/iptables/rules-save | grep dport
+-A INPUT -s 10.1.1.0/24 -d 10.4.4.0/24 -i eth1 -p tcp -m tcp --dport 22 -j DROP
+-A FORWARD -s 10.1.1.0/24 -d 10.4.4.0/24 -i eth1 -p tcp -m tcp --dport 22 -j DROP
+-A FORWARD -d 10.4.4.0/24 -p tcp -m tcp --dport 23 -j DROP
+### $ python a7_monitor.py
+r1             -> ano ssh exporter
+r2             -> ano ssh exporter
+r3             -> ano ssh exporter
+fw1            -> suzieq ssh polling
+srv1           -> suzieq ssh polling
+Start the SSH exporter for ['r1', 'r2', 'r3']:  python ssh_exporter.py   (Prometheus job 'ano-ssh', port 9805)
+Wrote monitoring/gnmic.yaml, monitoring/alert.rules.yml, suzieq/inventory.yml
+### exit=0

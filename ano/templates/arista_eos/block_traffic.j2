@@ -1,0 +1,7 @@
+ip access-list ANO-{{ intent.name }}
+   10 deny {{ intent.match.protocol }} {{ intent.match.src }} {{ intent.match.dst }}{% if intent.match.dst_port %} eq {{ intent.match.dst_port }}{% endif %}
+   1000 permit ip any any
+!
+interface {{ enforce.interface }}
+   ip access-group ANO-{{ intent.name }} {{ enforce.direction }}
+!
